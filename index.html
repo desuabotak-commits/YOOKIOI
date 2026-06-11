@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pixel City Survival - Mobile Landscape</title>
+    <style>
+        body { 
+            margin: 0; padding: 0; background-color: #010102; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            height: 100vh; height: -webkit-fill-available;
+            color: white; font-family: 'Courier New', Courier, monospace; 
+            overflow: hidden; user-select: none; -webkit-user-select: none;
+            touch-action: manipulation; 
+        }
+        
+        #gameContainer { 
+            position: relative; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            width: 100vw; height: 100vh;
+            box-sizing: border-box;
+        }
+
+        canvas { 
+            border: 4px solid #1f1111; background-color: #050508; 
+            image-rendering: pixelated; box-shadow: 0 0 60px rgba(255, 0, 0, 0.25); 
+            display: block; 
+            width: auto; height: auto;
+            max-width: 95vw; max-height: 70vh;
+            aspect-ratio: 16 / 9;
+        }
+
+        #menuScreen { 
+            position: absolute; 
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: calc(100% - 8px); height: calc(70vh - 8px);
+            max-width: calc(95vw - 8px);
+            aspect-ratio: 16 / 9;
+            background: radial-gradient(circle, #1c0606 0%, #030101 100%); 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            z-index: 10; 
+            border: 4px solid transparent; /* Untuk imbangan visual canvas border */
+            box-sizing: border-box;
+        }
+        #menuScreen h1 { font-size: 5vh; color: #cc0000; margin: 0 0 10px 0; text-shadow: 0 0 20px rgba(255, 0, 0, 0.7); text-align: center; letter-spacing: 2px; }
+        #menuScreen p { color: #888; font-size: 2vh; margin-bottom: 25px; max-width: 80%; line-height: 1.4; padding: 0 15px; text-align: center; }
+        
+        .btn-group { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; }
+        .diff-btn { padding: 8px 16px; font-family: 'Courier New'; font-weight: bold; font-size: 1.8vh; cursor: pointer; border: 2px solid #333; color: white; transition: all 0.2s ease; }
+        #btnEasy { background-color: #083b1e; border-color: #0cc257; }
+        #btnNormal { background-color: #5c3c00; border-color: #d48d00; }
+        #btnHard { background-color: #4a0000; border-color: #cc0000; }
+        
+        .hud-panel { 
+            display: flex; justify-content: space-between; align-items: center; 
+            font-size: 2vh; color: #00ffcc; margin-bottom: 4px; padding: 0 10px; 
+            width: 95vw; max-width: 800px; box-sizing: border-box; 
+        }
+        .health-bar { display: flex; gap: 3px; color: #ff3333; font-size: 2.5vh; }
+
+        #restartBtn { display: none; position: absolute; top: 65%; left: 50%; transform: translate(-50%, -50%); z-index: 30; background-color: #cc0000; border: 2px solid #ff3333; }
+
+        /* ========================================================= */
+        /* KONTROLER LANDSCAPE MOBILE (DESAIN KHUSUS JEMPOL)          */
+        /* ========================================================= */
+        #mobileControls { 
+            display: none; 
+            position: absolute;
+            bottom: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none; /* Agar tidak menghalangi klik canvas di area kosong */
+            z-index: 20; 
+            box-sizing: border-box;
+            padding: 0 4vw 4vw 4vw;
+        }
+        .control-group-left { 
+            position: absolute; bottom: 4vw; left: 4vw;
+            display: flex; gap: 15px; pointer-events: auto;
+        }
+        .control-group-right { 
+            position: absolute; bottom: 4vw; right: 4vw;
+            display: flex; pointer-events: auto;
+        }
+        .touch-btn { 
+            width: 14vw; height: 14vw; 
+            max-width: 80px; max-height: 80px;
+            background: rgba(30, 30, 45, 0.55); 
+            border: 3px solid #00ffcc; 
+            border-radius: 50%; 
+            display: flex; justify-content: center; align-items: center; 
+            font-size: 4vw; font-weight: bold; color: #00ffcc; 
+            touch-action: none; 
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.15);
+        }
+        .touch-btn:active { background: rgba(0, 255, 204, 0.35); color: #ffffff; transform: scale(0.9); }
+        #padJump { border-radius: 30px; width: 22vw; max-width: 120px; font-size: 3vw; }
+
+        /* DETEKSI LAYAR COARSE (SENTUH) & MODE LANDSCAPE */
+        @media (pointer: coarse) and (orientation: landscape) {
+            #mobileControls { display: block; }
+        }
+
+        /* SCREEN PERINGATAN BILA HP DALAM POSISI PORTRAIT */
+        #portraitWarning {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #050508; z-index: 100; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; color: white; padding: 20px; box-sizing: border-box;
+        }
+        #portraitWarning img { width: 80px; margin-bottom: 20px; filter: invert(1); animation: rotatePhone 2s infinite ease-in-out; }
+        @keyframes rotatePhone {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+            100% { transform: rotate(-90deg); }
+        }
+
+        @media (pointer: coarse) and (orientation: portrait) {
+            #portraitWarning { display: flex; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Layar Peringatan Rotasi -->
+<div id="portraitWarning">
+    <!-- Menggunakan SVG inline untuk ikon rotasi handphone -->
+    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#00ffcc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: rotatePhone 2s infinite ease-in-out;"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+    <h2 style="color: #cc0000; font-size: 24px; margin-top: 15px;">PUTAR LAYAR HP ANDA</h2>
+    <p style="color: #888; font-size: 14px;">Silakan aktifkan rotasi otomatis dan mainkan game ini dalam posisi Horizontal (Landscape).</p>
+</div>
+
+<div id="gameContainer">
+    <div class="hud-panel">
+        <div class="health-bar" id="healthBar">❤❤•</div>
+        <div>Tools: <span id="toolsCount">0</span>/<span id="maxToolsCount">5</span></div>
+        <div style="color: #ffcc00;">Jarak: <span id="distanceCount">0</span>m / <span id="maxDistanceCount">1000</span>m</div>
+    </div>
+
+    <div id="menuScreen">
+        <h1>SERANGAN NAGA KEGELAPAN</h1>
+        <p>Tingkat SULIT: Lompat berulang kali sambil berlari untuk memicu JUMP BOOST singkat agar bisa mendahului kecepatan Naga!</p>
+        <div class="btn-group">
+            <button class="diff-btn" id="btnEasy" onclick="initGame('easy')">MUDAH (1000m)</button>
+            <button class="diff-btn" id="btnNormal" onclick="initGame('normal')">NORMAL (1500m)</button>
+            <button class="diff-btn" id="btnHard" onclick="initGame('hard')">SULIT (2000m)</button>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
+    <button class="diff-btn" id="restartBtn" onclick="returnToMenu()">MAIN LAGI</button>
+
+    <!-- Struktur Kontroler Mobile Landscape yang Dipisah Samping -->
+    <div id="mobileControls">
+        <div class="control-group-left">
+            <div class="touch-btn" id="padLeft">←</div>
+            <div class="touch-btn" id="padRight">→</div>
+        </div>
+        <div class="control-group-right">
+            <div class="touch-btn" id="padJump">JUMP</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const toolsCountUI = document.getElementById("toolsCount");
+const maxToolsCountUI = document.getElementById("maxToolsCount");
+const distanceCountUI = document.getElementById("distanceCount");
+const maxDistanceCountUI = document.getElementById("maxDistanceCount");
+const healthBarUI = document.getElementById("healthBar");
+const menuScreen = document.getElementById("menuScreen");
+const restartBtn = document.getElementById("restartBtn");
+
+let audioCtx, ambientOsc, ambientGain, lfo, lfoGain;
+let gameStarted = false, gameOver = false, gameWon = false;
+let gameFrame = 0; 
+let loopAnimationId = null;
+
+let worldWidth = 10000;
+const groundY = 380;
+const gravity = 0.6;
+let cameraX = 0;
+let shakeTimer = 0; 
+let targetDistanceMeter = 1000;
+let requiredTools = 5;
+let currentDifficulty = 'easy';
+
+const player = {
+    x: 150, y: groundY - 48, width: 24, height: 48,
+    vx: 0, vy: 0, speed: 4.8, baseSpeed: 4.8, jumpForce: -12.5,
+    isGrounded: false, facing: "right", isMoving: false,
+    toolsCollected: 0, slowTimer: 0, health: 3, invincibleTimer: 0, jumpBoostTimer: 0 
+};
+
+const dragon = {
+    screenX: -160, x: 0, y: groundY - 140, width: 85, height: 126,
+    chaseSpeed: 1.5, currentSpeed: 1.5, wingAngle: 0, isBiting: false, biteJawOffset: 0       
+};
+
+let tools = []; let obstacles = []; let backgroundBuildings = [];
+let powerPoles = []; let ambientClouds = []; let stars = [];
+let finishGate = { x: 9650, y: groundY - 100, width: 60, height: 100 };
+
+function resetGameEngine() {
+    gameOver = false; gameWon = false; gameFrame = 0; cameraX = 0; shakeTimer = 0;
+    restartBtn.style.display = "none";
+    player.x = 150; player.y = groundY - 48; player.vx = 0; player.vy = 0;
+    player.isGrounded = false; player.facing = "right"; player.isMoving = false;
+    player.toolsCollected = 0; player.slowTimer = 0; player.health = 3;
+    player.invincibleTimer = 0; player.jumpBoostTimer = 0;
+    healthBarUI.innerText = "❤❤临"; toolsCountUI.innerText = "0";
+    dragon.screenX = -160; dragon.x = 0; dragon.y = groundY - 140;
+    dragon.isBiting = false; dragon.biteJawOffset = 0;
+    tools = []; obstacles = []; backgroundBuildings = []; powerPoles = []; ambientClouds = []; stars = [];
+    if (loopAnimationId) cancelAnimationFrame(loopAnimationId);
+    if (ambientOsc) { try { ambientOsc.stop(); } catch(e){} }
+}
+
+function initGame(difficulty) {
+    if (gameStarted) return;
+    gameStarted = true;
+    menuScreen.style.display = "none";
+    resetGameEngine();
+    currentDifficulty = difficulty;
+    
+    if (difficulty === 'easy') {
+        targetDistanceMeter = 1000; requiredTools = 3; player.baseSpeed = 5.4; dragon.chaseSpeed = 1.6;
+    } else if (difficulty === 'normal') {
+        targetDistanceMeter = 1500; requiredTools = 5; player.baseSpeed = 4.6; dragon.chaseSpeed = 2.2;
+    } else if (difficulty === 'hard') {
+        targetDistanceMeter = 2000; requiredTools = 7; player.baseSpeed = 3.8; dragon.chaseSpeed = 4.0;
+    }
+
+    dragon.currentSpeed = dragon.chaseSpeed;
+    player.speed = player.baseSpeed;
+    worldWidth = (targetDistanceMeter * 10) + 500;
+    finishGate.x = worldWidth - 350;
+    maxToolsCountUI.innerText = requiredTools;
+    maxDistanceCountUI.innerText = targetDistanceMeter;
+
+    generateGameWorld();
+
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    ambientOsc = audioCtx.createOscillator();
+    ambientGain = audioCtx.createGain();
+    ambientOsc.type = 'sine';
+    ambientOsc.frequency.setValueAtTime(35, audioCtx.currentTime);
+    
+    lfo = audioCtx.createOscillator();
+    lfoGain = audioCtx.createGain();
+    lfo.frequency.value = 0.2; lfoGain.gain.value = 8;
+    lfo.connect(lfoGain); lfoGain.connect(ambientOsc.frequency);
+    
+    ambientGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    ambientOsc.connect(ambientGain); ambientGain.connect(audioCtx.destination);
+    ambientOsc.start(); lfo.start();
+    
+    gameLoop();
+}
+
+function returnToMenu() {
+    gameStarted = false;
+    restartBtn.style.display = "none";
+    menuScreen.style.display = "flex";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function generateGameWorld() {
+    let toolsInterval = (finishGate.x - 1000) / requiredTools;
+    for (let i = 0; i < requiredTools; i++) {
+        let posX = 1000 + (i * toolsInterval) + (Math.random() * 150);
+        let types = ['wrench', 'screwdriver', 'hammer', 'gears', 'battery'];
+        tools.push({ x: posX, y: groundY - 20, size: 20, collected: false, type: types[i % types.length] });
+    }
+
+    let obstacleCount = Math.floor(targetDistanceMeter / 100) * 1.5;
+    for(let i = 0; i < obstacleCount; i++) {
+        let posX = 800 + (Math.random() * (finishGate.x - 1200));
+        let rand = Math.random();
+        if (rand < 0.33) obstacles.push({ type: 'spiky_debris', x: posX, y: groundY - 18, w: 28, h: 18 });
+        else if (rand < 0.66) obstacles.push({ type: 'toothed_concrete', x: posX, y: groundY - 28, w: 34, h: 28 });
+        else obstacles.push({ type: 'broken_pole_fire', x: posX, y: groundY - 40, w: 18, h: 40 });
+    }
+
+    for (let i = 0; i < worldWidth; i += 300) {
+        backgroundBuildings.push({ x: i + (Math.random() * 50), w: 120 + (Math.random() * 80), h: 200 + (Math.random() * 150), type: Math.random() > 0.5 ? 'broken_roof' : 'flat' });
+    }
+    for (let i = 0; i < worldWidth; i += 200) { powerPoles.push({ x: i }); }
+    for (let i = 0; i < 5; i++) { ambientClouds.push({ x: Math.random() * canvas.width, y: 20 + Math.random() * 80, w: 90, h: 24, speed: 0.1 + Math.random() * 0.15 }); }
+    for (let i = 0; i < 30; i++) { stars.push({ x: Math.random()*canvas.width, y: Math.random()*150, size: Math.random()*2 }); }
+}
+
+function playSFX(freq, type, duration, vol=0.1) {
+    if (!audioCtx) return;
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+    osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + duration);
+}
+
+const keys = {};
+window.addEventListener("keydown", e => { keys[e.key] = true; });
+window.addEventListener("keyup", e => { keys[e.key] = false; });
+
+const mobileKeys = { left: false, right: false, jump: false };
+function setupMobileButton(elementId, keyProp) {
+    const btn = document.getElementById(elementId);
+    if (!btn) return;
+    btn.addEventListener("touchstart", (e) => { e.preventDefault(); mobileKeys[keyProp] = true; }, { passive: false });
+    btn.addEventListener("touchend", (e) => { e.preventDefault(); mobileKeys[keyProp] = false; }, { passive: false });
+}
+setupMobileButton("padLeft", "left");
+setupMobileButton("padRight", "right");
+setupMobileButton("padJump", "jump");
+
+function update() {
+    gameFrame++;
+    if (gameOver || gameWon) {
+        if (shakeTimer > 0) shakeTimer--; 
+        if (restartBtn.style.display !== "block") restartBtn.style.display = "block";
+        return;
+    }
+
+    ambientClouds.forEach(c => { c.x -= c.speed; if (c.x + c.w < 0) c.x = canvas.width + 100; });
+    if (player.invincibleTimer > 0) player.invincibleTimer--;
+    if (player.jumpBoostTimer > 0) player.jumpBoostTimer--;
+
+    if (player.slowTimer > 0) {
+        player.slowTimer--; player.speed = player.baseSpeed * 0.4;
+    } else if (currentDifficulty === 'hard' && player.jumpBoostTimer > 0) {
+        player.speed = player.baseSpeed + 1.2; 
+    } else {
+        player.speed = player.baseSpeed;
+    }
+
+    player.isMoving = false;
+    if (keys["ArrowLeft"] || keys["a"] || keys["A"] || mobileKeys.left) {
+        player.vx = -player.speed; player.facing = "left"; player.isMoving = true;
+    } else if (keys["ArrowRight"] || keys["d"] || keys["D"] || mobileKeys.right) {
+        player.vx = player.speed; player.facing = "right"; player.isMoving = true;
+    } else {
+        player.vx = 0;
+    }
+
+    if ((keys["ArrowUp"] || keys["w"] || keys["W"] || keys[" "] || mobileKeys.jump) && player.isGrounded) {
+        player.vy = player.jumpForce; player.isGrounded = false;
+        playSFX(160, 'triangle', 0.15, 0.04); mobileKeys.jump = false; 
+    }
+
+    let wasGrounded = player.isGrounded;
+    player.vy += gravity; player.x += player.vx; player.y += player.vy;
+    
+    if (player.y >= groundY - player.height) { 
+        player.y = groundY - player.height; player.vy = 0; player.isGrounded = true; 
+        if (!wasGrounded && player.isMoving && currentDifficulty === 'hard') {
+            player.jumpBoostTimer = 45; playSFX(320, 'sine', 0.1, 0.05);
+        }
+    }
+    if (player.x < 0) player.x = 0;
+
+    cameraX = player.x - canvas.width / 2;
+    if (cameraX < 0) cameraX = 0;
+    if (cameraX > worldWidth - canvas.width) cameraX = worldWidth - canvas.width;
+
+    let currentMeter = Math.floor((player.x / finishGate.x) * targetDistanceMeter);
+    distanceCountUI.innerText = Math.min(currentMeter, targetDistanceMeter);
+
+    let distanceToPlayer = player.x - (cameraX + dragon.screenX);
+    if (distanceToPlayer > 350) dragon.currentSpeed = player.speed + 2.0; 
+    else dragon.currentSpeed = dragon.chaseSpeed;  
+
+    dragon.screenX += (dragon.currentSpeed - (player.vx > 0 ? player.vx * 0.85 : 0));
+    if (dragon.screenX < -160) dragon.screenX = -160;
+    dragon.x = cameraX + dragon.screenX;
+    dragon.y = (groundY - dragon.height - 35) + Math.sin(gameFrame * 0.05) * 15;
+    dragon.wingAngle = Math.sin(gameFrame * 0.18);
+
+    if (distanceToPlayer < 110) {
+        dragon.isBiting = true; dragon.biteJawOffset = Math.floor(gameFrame / 4) % 2 === 0 ? 8 : 0;
+    } else {
+        dragon.isBiting = false; dragon.biteJawOffset = 0;
+    }
+
+    obstacles.forEach(obs => {
+        if (player.x < obs.x + obs.w && player.x + player.width > obs.x && player.y < obs.y + obs.h && player.y + player.height > obs.y) {
+            if (player.slowTimer === 0) { player.slowTimer = 40; playSFX(130, 'sawtooth', 0.2, 0.12); }
+        }
+    });
+
+    tools.forEach(t => {
+        if (!t.collected && player.x < t.x + t.size && player.x + player.width > t.x && player.y < t.y + t.size && player.y + player.height > t.y) {
+            t.collected = true; player.toolsCollected++; toolsCountUI.innerText = player.toolsCollected;
+            playSFX(580, 'sine', 0.15, 0.15); dragon.chaseSpeed += 0.3; 
+        }
+    });
+
+    if (player.x < dragon.x + dragon.width && player.x + player.width > dragon.x && player.y < dragon.y + dragon.height && player.y + player.height > dragon.y) {
+        if (player.invincibleTimer === 0) {
+            player.health--;
+            let healthStr = "";
+            for(let i=0; i<3; i++) { healthStr += (i < player.health) ? "❤" : "🖤"; }
+            healthBarUI.innerText = healthStr;
+
+            if (player.health <= 0) {
+                gameOver = true; shakeTimer = 45;
+                if (ambientOsc) { try { ambientOsc.stop(); } catch(e){} }
+                playSFX(45, 'sawtooth', 1.6, 0.5); 
+            } else {
+                shakeTimer = 15; playSFX(90, 'sawtooth', 0.4, 0.35);
+                player.invincibleTimer = 120; dragon.screenX = -130; 
+            }
+        }
+    }
+
+    if (player.x < finishGate.x + finishGate.width && player.x + player.width > finishGate.x) {
+        if (player.toolsCollected >= requiredTools) {
+            gameWon = true; if (ambientOsc) { try { ambientOsc.stop(); } catch(e){} }
+            playSFX(900, 'sine', 0.4, 0.2);
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    if (shakeTimer > 0) ctx.translate((Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16);
+
+    let skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+    skyGrad.addColorStop(0, "#010103"); skyGrad.addColorStop(1, "#080410");
+    ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ffffff"; stars.forEach(s => ctx.fillRect(s.x, s.y, s.size, s.size));
+
+    ctx.fillStyle = "rgba(22, 17, 30, 0.55)";
+    ambientClouds.forEach(c => { ctx.fillRect(c.x, c.y, c.w, c.h); ctx.fillRect(c.x + c.w * 0.15, c.y - c.h * 0.35, c.w * 0.7, c.h * 1.6); });
+
+    ctx.save(); ctx.translate(-cameraX, 0);
+
+    ctx.fillStyle = "#040207";
+    backgroundBuildings.forEach(b => {
+        if (b.type === 'broken_roof') {
+            ctx.beginPath(); ctx.moveTo(b.x, groundY); ctx.lineTo(b.x, groundY - b.h + 60);
+            ctx.lineTo(b.x + b.w / 2, groundY - b.h); ctx.lineTo(b.x + b.w, groundY - b.h + 40);
+            ctx.lineTo(b.x + b.w, groundY); ctx.fill();
+        } else { ctx.fillRect(b.x, groundY - b.h, b.w, b.h); }
+    });
+
+    ctx.fillStyle = "#16131c";
+    powerPoles.forEach(p => { ctx.fillRect(p.x, groundY - 180, 8, 180); ctx.fillRect(p.x - 20, groundY - 170, 48, 6); });
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.65)"; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i < powerPoles.length - 1; i++) {
+        let p1 = powerPoles[i]; let p2 = powerPoles[i+1];
+        ctx.moveTo(p1.x - 13, groundY - 173); ctx.quadraticCurveTo((p1.x + p2.x) / 2, groundY - 155, p2.x - 13, groundY - 173);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = "#0e0e11"; ctx.fillRect(0, groundY, worldWidth, canvas.height - groundY);
+    ctx.fillStyle = "#323242"; for(let i = 0; i < worldWidth; i += 90) { ctx.fillRect(i, groundY + 32, 40, 4); } 
+
+    obstacles.forEach(obs => {
+        if (obs.type === 'spiky_debris') {
+            ctx.fillStyle = "#201815"; ctx.beginPath(); ctx.moveTo(obs.x, groundY); ctx.lineTo(obs.x + obs.w / 2, obs.y); ctx.lineTo(obs.x + obs.w, groundY); ctx.fill();
+        } else if (obs.type === 'toothed_concrete') {
+            ctx.fillStyle = "#202125"; ctx.fillRect(obs.x, obs.y + 8, obs.w, obs.h - 8);
+        } else if (obs.type === 'broken_pole_fire') {
+            ctx.fillStyle = "#101215"; ctx.fillRect(obs.x, obs.y + 10, obs.w, obs.h - 10);
+            if (Math.floor(gameFrame / 8) % 2 === 0) { ctx.fillStyle = "#ff5500"; ctx.fillRect(obs.x + 2, obs.y, 14, 10); }
+        }
+    });
+
+    let meterInterval = 250;
+    for(let i = meterInterval; i <= finishGate.x; i += meterInterval) {
+        let displayMeter = Math.floor((i / finishGate.x) * targetDistanceMeter);
+        if (displayMeter <= targetDistanceMeter) {
+            ctx.fillStyle = "#222230"; ctx.fillRect(i - 20, groundY - 68, 55, 23);
+            ctx.fillStyle = "#00ffcc"; ctx.font = "10px monospace"; ctx.fillText(displayMeter + "m", i - 14, groundY - 53);
+        }
+    }
+
+    tools.forEach(t => { if (!t.collected) { ctx.fillStyle = "#00ffcc"; ctx.fillRect(t.x, t.y + 5, t.size, 10); ctx.fillRect(t.x + 5, t.y, 10, t.size); } });
+
+    ctx.fillStyle = "#031d03"; ctx.fillRect(finishGate.x, finishGate.y, finishGate.width, finishGate.height);
+    ctx.lineWidth = 3; ctx.strokeStyle = "#00ff55"; ctx.strokeRect(finishGate.x, finishGate.y, finishGate.width, finishGate.height);
+    ctx.fillStyle = "#00ff55"; ctx.font = "11px monospace"; ctx.fillText("ZONA AMAN", finishGate.x - 3, finishGate.y - 12);
+
+    ctx.save(); ctx.translate(dragon.x, dragon.y);
+    ctx.fillStyle = "rgba(20, 0, 30, 0.25)"; ctx.fillRect(-15, -15, dragon.width + 30, dragon.height + 30);
+    ctx.fillStyle = "#12091c"; ctx.beginPath(); ctx.moveTo(35, 45); ctx.lineTo(-25, 10 + dragon.wingAngle * 35); ctx.lineTo(5, 75); ctx.fill(); 
+    ctx.fillStyle = "#1b0a26"; ctx.fillRect(-35, 80 + Math.sin(gameFrame * 0.1) * 8, 45, 12); 
+    ctx.fillStyle = "#1f0d2e"; ctx.fillRect(10, 35, 50, 55); 
+    ctx.fillStyle = "#180b24"; ctx.beginPath(); ctx.moveTo(45, 45); ctx.lineTo(-10, -15 + dragon.wingAngle * 45); ctx.lineTo(25, 70); ctx.fill(); 
+    ctx.fillStyle = "#1f0d2e"; ctx.fillRect(50, 20, 18, 30); ctx.fillRect(58, 12, 14, 20); 
+    ctx.fillStyle = "#170824"; ctx.fillRect(64, 2, 28, 12); 
+    ctx.fillStyle = "#361b54"; ctx.fillRect(58, -6, 10, 10); 
+    if (dragon.isBiting && Math.floor(gameFrame / 3) % 2 === 0) { ctx.fillStyle = "#ff5555"; } else { ctx.fillStyle = "#aa0000"; }
+    ctx.fillRect(78, 5, 6, 5); ctx.fillStyle = "#11051b"; ctx.fillRect(64, 14 + dragon.biteJawOffset, 24, 8); 
+    if (dragon.biteJawOffset > 0) { ctx.fillStyle = "#ffffff"; ctx.fillRect(70, 14, 3, 2); ctx.fillRect(78, 14, 3, 2); }
+    ctx.fillStyle = "#0a0314"; ctx.fillRect(20, 88, 10, 14); ctx.fillRect(50, 88, 10, 14); 
+    ctx.restore();
+
+    ctx.save(); ctx.translate(player.x, player.y);
+    if (player.facing === "left") { ctx.scale(-1, 1); ctx.translate(-player.width, 0); }
+    
+    let isBlink = (player.invincibleTimer > 0 && Math.floor(gameFrame / 5) % 2 === 0) || (player.slowTimer > 0 && Math.floor(player.slowTimer / 4) % 2 === 0);
+    if (isBlink) ctx.globalAlpha = 0.3;
+
+    if (currentDifficulty === 'hard' && player.jumpBoostTimer > 0) {
+        ctx.fillStyle = "rgba(0, 255, 242, 0.4)"; ctx.fillRect(-14, 14, 12, 4); ctx.fillRect(-8, 26, 8, 4); ctx.fillRect(-12, 36, 10, 3);
+    }
+
+    let legCycle = Math.sin(gameFrame * 0.25) * 8;
+    if (!player.isGrounded) legCycle = 6; if (!player.isMoving && player.isGrounded) legCycle = 0; 
+
+    ctx.fillStyle = "#1a1a1a"; ctx.fillRect(4, 38, 6, 10); 
+    ctx.fillStyle = "#ff3b30"; ctx.fillRect(4 + (player.isMoving ? -legCycle/2 : 0), 44, 8, 4);
+    ctx.fillStyle = "#22252a"; ctx.fillRect(4, 28, 14, 12);
+    ctx.fillStyle = "#2b2f36"; ctx.fillRect(12, 38, 6, 10); 
+    ctx.fillStyle = "#ff3b30"; ctx.fillRect(12 + (player.isMoving ? legCycle : 0), 44, 8, 4);
+    ctx.fillStyle = "#007aff"; ctx.fillRect(2, 14, 16, 16);
+    ctx.fillStyle = "#0a1118"; ctx.fillRect(8, 14, 5, 16);
+    ctx.fillStyle = "#ffdbb5"; ctx.fillRect(4, 4, 12, 11);
+    ctx.fillStyle = "#00ffcc"; ctx.fillRect(10, 6, 7, 3);
+    ctx.fillStyle = "#ffcc00"; ctx.fillRect(2, 1, 13, 4); ctx.fillRect(2, 4, 3, 6);  
+    ctx.fillStyle = "#0055cc"; ctx.fillRect(4 + (player.isMoving ? -legCycle/3 : 0), 16, 5, 10)  
+    ctx.fillStyle = "#ffdbb5"; ctx.fillRect(4 + (player.isMoving ? -legCycle/3 : 0), 24, 4, 4);  
+
+    ctx.restore(); ctx.restore();
+
+    if (gameOver || gameWon) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.textAlign = "center";
+
+        if (gameOver) {
+            ctx.font = "bold 24px 'Courier New'"; ctx.fillStyle = "#ff2222";
+            ctx.fillText("KAMU TERMAKAN NAGA!", canvas.width / 2, canvas.height / 2 - 10);
+            ctx.font = "12px 'Courier New'"; ctx.fillStyle = "#888888";
+            ctx.fillText("Gunakan tombol di bawah untuk mencoba lagi", canvas.width / 2, canvas.height / 2 + 30);
+        } else if (gameWon) {
+            ctx.font = "bold 24px 'Courier New'"; ctx.fillStyle = "#00ff88";
+            ctx.fillText("ZONA AMAN TERCAPAI!", canvas.width / 2, canvas.height / 2 - 50);
+            ctx.font = "bold 14px 'Courier New'"; ctx.fillStyle = "#ffcc00";
+            
+            let endingTitle = ""; let endingDesc1 = ""; let endingDesc2 = "";
+
+            if (currentDifficulty === 'easy') {
+                endingTitle = "ENDING: KELAS KACIL (KABUR CEPAT)";
+                endingDesc1 = "Kamu berhasil menutup gerbang perlindungan sebelum Naga menyadarinya.";
+                endingDesc2 = "Kota hancur, namun kamu selamat dengan peralatan seadanya.";
+            } else if (currentDifficulty === 'normal') {
+                endingTitle = "ENDING: PENYINTAS METROPOLIS SEJATI";
+                endingDesc1 = "Dengan 5 alat lengkap, kamu mengaktifkan meriam EMP bunker bawah tanah.";
+                endingDesc2 = "Naga Kegelapan terhempas mundur dan kota berhasil diamankan!";
+            } else if (currentDifficulty === 'hard') {
+                endingTitle = "ENDING RAHASIA: DEWA KECEPATAN CAHAYA!";
+                endingDesc1 = "Luar biasa! Menggunakan teknik beruntun 'Jump Boost', kamu melesat";
+                endingDesc2 = "menembus batas kecepatan Naga, memicu super-portal, dan memusnahkannya!";
+            }
+
+            ctx.fillText(endingTitle, canvas.width / 2, canvas.height / 2 - 15);
+            ctx.font = "11px 'Courier New'"; ctx.fillStyle = "#ffffff";
+            ctx.fillText(endingDesc1, canvas.width / 2, canvas.height / 2 + 15);
+            ctx.fillText(endingDesc2, canvas.width / 2, canvas.height / 2 + 30);
+        }
+    }
+    ctx.restore();
+}
+
+function gameLoop() {
+    update(); draw(); loopAnimationId = requestAnimationFrame(gameLoop);
+}
+</script>
+</body>
+</html>
